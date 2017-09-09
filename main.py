@@ -7,14 +7,17 @@ Created on Fri Sep  8 20:55:15 2017
 
 import math
 import pandas
+from time import time
 from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 
 # CSV_FILE = "C:\\Users\\Chase\\Downloads\\income_tr.csv"
-CSV_FILE  = "C:\\Users\\Chase\\Documents\\Projects\\data mining\\income_small.csv"
+CSV_FILE  = "samples/income_tr.csv"
 
 # Significant figures of similarity values to output
 SIGFIGS = 3
+
+K = 4
 
 def dot(left: tuple, right: tuple) -> float:
     """generic dot product between two arbitrary vectors
@@ -26,6 +29,12 @@ def dot(left: tuple, right: tuple) -> float:
 
 
 def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
+    """create an (m01, m10, m00, m11) tuple by counting matches in cols
+        
+    left: vector
+    right: vector
+    cols: list of column names to include in the subvector
+    """
     m01 = m10 = m00 = m11 = 0
     for c in cols:
         if left[c] > right[c]:
@@ -39,21 +48,25 @@ def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
     return (m01, m10, m00, m11)
 
 
-def smc(left: Series, right: Series, cols: tuple) -> float:
-    """perform simple matching with the specified columns
-    left: row to compare
-    right: row to compare
-    cols: tuple of column names to include
+def smc(left: Series, right: Series, cols: list) -> float:
+    """create a simple matching coefficient of specified columns
+        within two vectors
+        
+    left: vector
+    right: vector
+    cols: list of column names to include in the subvector
     """
     m01, m10, m00, m11 = count_binary_vectors(left, right, cols)
     return (m11 + m00) / (m01 + m10 + m11 + m00)
 
 
-def jaccard(left: Series, right: Series, cols: tuple) -> float:
-    """perform Jaccard comparison with the specified columns
-    left: row to compare
-    right: row to compare
-    cols: tuple of column names to include
+def jaccard(left: Series, right: Series, cols: list) -> float:
+    """create a Jaccard coefficient of specified columns
+        within two vectors
+        
+    left: vector
+    right: vector
+    cols: list of column names to include in the subvector
     """
     m01, m10, m00, m11 = count_binary_vectors(left, right, cols)
     return m11 / (m01 + m10 + m11)
@@ -70,44 +83,18 @@ def cosine_similarity(a: tuple, b: tuple) -> float:
 
     return dab / (mag_a * mag_b)
 
-"""
-    Naive algorithm:
+
+def distance(left: Series, right: Series, col: str) -> float:
+    """basic distance calculation of an interval attribute
     
-    -- generate prox map
-    prox_map <- empty set
-    for each row L:
-        Lt <- transform(L)
-        for each row R not L:
-            Rt <- transform(R)
-            P <- proximity(Lt, Rt)
-            prox_map[L] <- (P, R.id)
+    left: Pandas series
+    right: Pandas series
+    col: interval attribute name
+    """
+    return 1 / (1 + abs(left[col] - right[col]))
 
-    -- output
-    print headers up to k
-    for each row L:
-        print L.id
 
-        sort(prox_map[L]) on first tuple value
-        for each prox_map[L] to k:
-            print prox_map[L]
-
-    Possible optimizations:
-    * Currently at least O(n)
-    * We know proximity(Lt, Rt) so
-        we shouldn't need to calculate
-        proximity(Rt, Lt)
-    * Pre-transform of the complete
-        dataset in bulk might be faster?
-    * Storing a map of ALL proximities
-        and then sorting on each during
-        output is speed+storage intensive.
-        We would only need to store k 
-        proximities and insert IFF 
-        P < all P in prox_map[L] OR 
-        len(prox_map[L]) < k
-"""
-
-def print_header(k: int) -> None:
+def print_header(k: int) -> str:
     """
     k: number of proximity columns to print
     """
@@ -115,107 +102,89 @@ def print_header(k: int) -> None:
     # code golf credit to: https://stackoverflow.com/a/20007730
     ordinal = lambda n: '%d%s' % (n,'tsnrhtdd'[(math.floor(n/10)%10!=1)*(n%10<4)*n%10::4])
 
-    cols = ['\t' + ordinal(x+1) + '\t' + str(x+1) + '-prox' for x in range(k)]
-    print('ID', *cols)
-
-
-def print_proximities(id: str, p_arr: list) -> None:
+    cols = [ordinal(x+1) + '\t' + str(x+1) + '-prox' for x in range(k)]
+    return 'ID\t' + '\t'.join(cols) + '\n'
+        
+def print_proximities(id: str, p_arr: list) -> str:
     """
     id: id value to print
     p_array: proximity list to print (list of tuples)
     """
-    cols = ['\t' + str(x[1]) + '\t' + str(round(x[0], SIGFIGS)) for x in p_arr]
-    print(id, *cols)
+    cols = [str(x[1]) + '\t' + str(round(x[0], SIGFIGS)) for x in p_arr]
+    return str(id) + '\t' + '\t'.join(cols) + '\n'
 
 
-def transform(df: DataFrame, row: Series) -> tuple:
-    """perform initial data transformation into a tuple
-
-    Note that dtype isn't reliable for a distinct row,
-    so we instead rely on the df's dtype for the column
-
-    df: Dataset
-    row: Pandas Series
-    """
-    
-    """
-        To be done:
-        - handle outliers
-        - handle differently scaled attributes
-            ordinal similarity:
-                1 - |p-q|/(n-1) | p & q are mapped in 0 -> n - 1
-                and n is the number of values
-                ordinal being *ranking* (say happiness 1-10)
-                not a category
-        - handle missing values
-        - 
-    """
-    
-    return (
-        row['age'], 
-        row['education_cat'], 
-        row['hour_per_week'],
-        1 if row['gender'].strip() == 'Male' else 0
-    )
-
-
-def proximity(left: tuple, right: tuple) -> float:
+def proximity(left: Series, right: Series) -> float:
     """calculate proximity between two records
 
     left: Pandas series
     right: Pandas series
     """
-    
-    """
-        TODO: 
-        Not a cosine similarity of the entire tuple.
-        Instead run different prox algos per record
-        (or vectors of records?) and combine for 
-        a single similarity value
-    """
-    return cosine_similarity(left, right)
-
-
-def calculate(df: DataFrame, k: int) -> None:
-    """naive implementation of applying transformations,
-        proximity calculations, and final output
+    vector = [ 
+        # for categoricals we expanded out into dummy variables,
+        # we perform SMC (0 relevant) or Jaccard (for long 0 sequences)
+        smc(left, right, [x for x in df['gender'].unique()]),
+        jaccard(left, right, [x for x in df['race'].unique()]),
+        jaccard(left, right, [x for x in df['workclass'].unique()]),
+        jaccard(left, right, [x for x in df['marital_status'].unique()]),
+        jaccard(left, right, [x for x in df['relationship'].unique()]),
+        jaccard(left, right, [x for x in df['native_country'].unique()]),
         
-        -- generate prox map
-        prox_map <- empty set
-        for each row L:
-            Lt <- transform(L)
-            for each row R not L:
-                Rt <- transform(R)
-                P <- proximity(Lt, Rt)
-                prox_map[L] <- (P, R.id)
+        # For intervals, we do a basic distance calculation 1/(1+|p-q|)
+        distance(left, right, 'age'),
+        distance(left, right, 'education_cat'),
+        distance(left, right, 'hour_per_week')
+    ]
     
-        -- output
-        print headers up to k
-        for each row L:
-            print L.id
+    # For sparse data with some major outliers, we'll ignore 0's 
+    # and just use distance 
+    if left['capital_gain'] > 0 or right['capital_gain'] > 0:
+        vector.append(distance(left, right, 'capital_gain'))
     
-            sort(prox_map[L]) on first tuple value
-            for each prox_map[L] to k:
-                print prox_map[L]
+    if left['capital_loss'] > 0 or right['capital_loss'] > 0:
+        vector.append(distance(left, right, 'capital_loss'))
+    
+    # Finally perform a combined similarity of all the similarities
+    # calculated per attribute (or set of attributes)
+    return sum(vector) / len(vector)
+
+
+def calculate(df: DataFrame, k: int) -> dict:
+    """naive implementation of calculating proximities.
+    
+        tl;dr:
+            for left in rows:
+                for right in rows:
+                    map <- proximity(left, right)
+                    
+        Fine for small number of rows, but performance
+        is impacted exponentially for large rowsets.
     """
     prox_map = {}
     for i, left in df.iterrows():
         prox_map[i] = []
 
         for j, right in df.iterrows():
-            if i != j:
-                leftT = transform(df, left)
-                rightT = transform(df, right)
+            if i != j and len(prox_map[i]) < k:
                 prox_map[i].append(
-                    (proximity(leftT, rightT), right['ID'])
+                    (proximity(left, right), right['ID'])
                 )
+                
+    return prox_map
 
+
+def print_prox_map(df: DataFrame, prox_map: dict, k: int) -> str:
+    """create a matrix of proximities
+    
+    """
     # Print headers
-    print_header(k)
+    out = print_header(k)
 
     for i, left in df.iterrows():
         prox_map[i].sort(key = lambda x: x[0], reverse = True)
-        print_proximities(left['ID'], prox_map[i][:k])
+        out += print_proximities(left['ID'], prox_map[i][:k])
+
+    return out
 
 
 def fast_calculate(df: DataFrame, k: int) -> None:
@@ -223,21 +192,62 @@ def fast_calculate(df: DataFrame, k: int) -> None:
     # https://stackoverflow.com/questions/7837722/what-is-the-most-efficient-way-to-loop-through-dataframes-with-pandas
     pass
 
-def create_dummy_variables(df: DataFrame, cat: str):
-    """expand categorical attribute into dummy variables"""
+def create_dummy_variables(df: DataFrame, cat: str) -> None:
+    """expand a categorical attribute into dummy variables
+        named after each unique category
+    """
+    # some may have " ?" as a category, clean these out first
+    # so there aren't collisions later on
+    df[cat] = df[cat].apply(lambda x: x if x != ' ?' else cat + '-unk')
+    
     uniques = [x for x in df[cat].unique()]
     for u in uniques:
-        df[u] = df['race'].apply(lambda x: x == u)
+        df[u] = df[cat].apply(lambda x: int(x == u))
+    
+    
+def apply_base_transformations(df: DataFrame) -> None:
+    """apply initial transformations to normalize/binarize attributes
+    
+    df: Pandas DataFrame to transform
+    """
+    # Transformation rules are based on initial data exploration
+    # of the income dataset
+    
+    # Expand categorical attributes we care about
+    create_dummy_variables(df, 'gender')
+    create_dummy_variables(df, 'race')
+    create_dummy_variables(df, 'workclass')
+    create_dummy_variables(df, 'native_country')
+    create_dummy_variables(df, 'marital_status')
+    create_dummy_variables(df, 'relationship')
     
 
 if __name__ == '__main__':
     df = pandas.read_csv(CSV_FILE)
-    k = 4
-  
-    # df['foo'] = df[['race', 'age']].apply(lambda x: x[0] + str(x[1]), axis = 1)
-        
-    create_dummy_variables(df, 'race')
-    create_dummy_variables(df, 'workclass')
-    print(df)
     
-    #calculate(df, k)
+    # 7 seconds for  50 
+    # 11 seconds for 60
+    # 14 seconds for 70
+    
+    now = time()
+    apply_base_transformations(df)
+    transformation_time = time() - now
+    
+    now = time()
+    prox_map = fast_calculate(df[:50], K)
+    calculate_time = time() - now
+    
+    now = time()
+    # with open('out.txt', 'w') as f:
+    #    f.write(print_prox_map(df, prox_map, K))
+    #results = print_prox_map(df[:70], prox_map, K)
+    print_time = time() - now
+    
+    #print(results)
+    print(len(prox_map))
+    print('Transform', transformation_time)
+    print('Calculate', calculate_time)
+    print('Print', print_time)
+    
+    
+    
