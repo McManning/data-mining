@@ -113,8 +113,17 @@ def print_proximities(id: str, p_arr: list) -> str:
     cols = [str(x[1]) + '\t' + str(round(x[0], SIGFIGS)) for x in p_arr]
     return str(id) + '\t' + '\t'.join(cols) + '\n'
 
-
-def proximity(left: Series, right: Series) -> float:
+dummy_cache = {}
+def get_dummy_variables(df: DataFrame, col: str) -> list:
+    """
+    """
+    # Uses a cache so we don't have to constantly do list comprehension
+    if col not in dummy_cache:
+        dummy_cache[col] = [x for x in df[col].unique()]
+        
+    return dummy_cache[col]
+    
+def proximity(df: DataFrame, left: Series, right: Series) -> float:
     """calculate proximity between two records
 
     left: Pandas series
@@ -123,12 +132,12 @@ def proximity(left: Series, right: Series) -> float:
     vector = [ 
         # for categoricals we expanded out into dummy variables,
         # we perform SMC (0 relevant) or Jaccard (for long 0 sequences)
-        smc(left, right, [x for x in df['gender'].unique()]),
-        jaccard(left, right, [x for x in df['race'].unique()]),
-        jaccard(left, right, [x for x in df['workclass'].unique()]),
-        jaccard(left, right, [x for x in df['marital_status'].unique()]),
-        jaccard(left, right, [x for x in df['relationship'].unique()]),
-        jaccard(left, right, [x for x in df['native_country'].unique()]),
+        smc(left, right, get_dummy_variables(df, 'gender')),
+        jaccard(left, right, get_dummy_variables(df, 'race')),
+        jaccard(left, right, get_dummy_variables(df, 'workclass')),
+        jaccard(left, right, get_dummy_variables(df, 'marital_status')),
+        jaccard(left, right, get_dummy_variables(df, 'relationship')),
+        jaccard(left, right, get_dummy_variables(df, 'native_country')),
         
         # For intervals, we do a basic distance calculation 1/(1+|p-q|)
         distance(left, right, 'age'),
@@ -167,7 +176,7 @@ def calculate(df: DataFrame, k: int) -> dict:
         for j, right in df.iterrows():
             if i != j and len(prox_map[i]) < k:
                 prox_map[i].append(
-                    (proximity(left, right), right['ID'])
+                    (proximity(df, left, right), right['ID'])
                 )
                 
     return prox_map
@@ -216,6 +225,9 @@ def fast_calculate(df: DataFrame, k: int) -> None:
     
     # Still seeing ~ 4s for 50, 15s for 100, 60s for 200.
     # Iteration time *without* proximity() is 1.5s 
+    
+    # Implementing dummy_cache gives us:
+    # ~1.7s for 50, ~8s for 100, 35s for 200
     for i in range(0, n):
         left = series_set[i]
         l_id = left['ID']
@@ -223,7 +235,7 @@ def fast_calculate(df: DataFrame, k: int) -> None:
             right = series_set[j]
             r_id = right['ID']
             
-            p = proximity(left, right)
+            p = proximity(df, left, right)
             prox_map[i].append((p, r_id))
             prox_map[j].append((p, l_id))
             
@@ -272,7 +284,7 @@ if __name__ == '__main__':
     transformation_time = time() - now
     
     now = time()
-    prox_map = fast_calculate(df[:50], K)
+    prox_map = fast_calculate(df[:200], K)
     calculate_time = time() - now
     
     now = time()
