@@ -190,7 +190,45 @@ def print_prox_map(df: DataFrame, prox_map: dict, k: int) -> str:
 def fast_calculate(df: DataFrame, k: int) -> None:
     """optimized variation over calculate()"""
     # https://stackoverflow.com/questions/7837722/what-is-the-most-efficient-way-to-loop-through-dataframes-with-pandas
-    pass
+    
+    # We first extract every series immediately, as every time
+    # df.iterrows() is called, it creates a new Series instance
+    # per iteration.
+    series_set = [x for i, x, in df.iterrows()]
+    
+    """
+        N = len(rows)
+        i = 0
+        
+        for i in range(0, N):
+            L <- row[i]
+            for j in range(i + 1, N):
+                R <- row[j]
+                p = proximity(L, R)
+                map[L] <- (p, R)
+                map[R] <- (p, L)
+    """
+    n = len(series_set)
+    prox_map = [[]] * n # pre-allocate for all indices
+    
+    # Iterate through, performing proximity comparisons
+    # forward of each index. Should be about O(nlog(n))
+    
+    # Still seeing ~ 4s for 50, 15s for 100, 60s for 200.
+    # Iteration time *without* proximity() is 1.5s 
+    for i in range(0, n):
+        left = series_set[i]
+        l_id = left['ID']
+        for j in range(i + 1, n):
+            right = series_set[j]
+            r_id = right['ID']
+            
+            p = proximity(left, right)
+            prox_map[i].append((p, r_id))
+            prox_map[j].append((p, l_id))
+            
+    return prox_map
+    
 
 def create_dummy_variables(df: DataFrame, cat: str) -> None:
     """expand a categorical attribute into dummy variables
