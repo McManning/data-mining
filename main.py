@@ -19,6 +19,8 @@ SIGFIGS = 3
 
 K = 4
 
+g_dummy_cache = {}
+
 def dot(left: tuple, right: tuple) -> float:
     """generic dot product between two arbitrary vectors
 
@@ -37,14 +39,18 @@ def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
     """
     m01 = m10 = m00 = m11 = 0
     for c in cols:
-        if left[c] > right[c]:
-            m10 += 1
-        elif left[c] < right[c]:
-            m01 += 1
-        elif left[c] == 0:
+        l = left[c]
+        r = right[c]
+        if l == 1:
+            if r == 0:
+                m10 += 1
+            else:
+                m11 += 1
+        elif r == 0:
             m00 += 1
         else:
-            m11 += 1
+            m01 += 1
+            
     return (m01, m10, m00, m11)
 
 
@@ -119,6 +125,7 @@ def print_header(k: int) -> str:
     cols = [ordinal(x+1) + '\t' + str(x+1) + '-prox' for x in range(k)]
     return 'ID\t' + '\t'.join(cols) + '\n'
         
+
 def print_proximities(id: str, p_arr: list) -> str:
     """
     id: id value to print
@@ -127,16 +134,17 @@ def print_proximities(id: str, p_arr: list) -> str:
     cols = [str(x[1]) + '\t' + str(round(x[0], SIGFIGS)) for x in p_arr]
     return str(id) + '\t' + '\t'.join(cols) + '\n'
 
-dummy_cache = {}
+
 def get_dummy_variables(df: DataFrame, col: str) -> list:
     """
     """
     # Uses a cache so we don't have to constantly do list comprehension
-    if col not in dummy_cache:
-        dummy_cache[col] = [x for x in df[col].unique()]
+    if col not in g_dummy_cache:
+        g_dummy_cache[col] = [x for x in df[col].unique()]
         
-    return dummy_cache[col]
+    return g_dummy_cache[col]
     
+
 def proximity(df: DataFrame, left: Series, right: Series) -> float:
     """calculate proximity between two records
 
@@ -237,6 +245,9 @@ def fast_calculate(df: DataFrame, k: int) -> None:
     
     # Implementing dummy_cache gives us:
     # ~1.7s for 50, ~8s for 100, 35s for 200
+    
+    # Implementing fast_jaccard (the biggest bottleneck):
+    # ~1s for 100, ~5s for 200, ~35s for 520
     for i in range(0, n):
         left = series_set[i]
         l_id = left['ID']
@@ -282,31 +293,28 @@ def apply_base_transformations(df: DataFrame) -> None:
     create_dummy_variables(df, 'native_country')
     create_dummy_variables(df, 'marital_status')
     create_dummy_variables(df, 'relationship')
+    create_dummy_variables(df, 'occupation')
     
-
 if __name__ == '__main__':
     df = pandas.read_csv(CSV_FILE)
-    
-    # 7 seconds for  50 
-    # 11 seconds for 60
-    # 14 seconds for 70
     
     now = time()
     apply_base_transformations(df)
     transformation_time = time() - now
-    
+
     now = time()
-    prox_map = fast_calculate(df[:200], K)
+    prox_map = fast_calculate(df, K)
     calculate_time = time() - now
     
     now = time()
-    # with open('out.txt', 'w') as f:
-    #    f.write(print_prox_map(df, prox_map, K))
-    #results = print_prox_map(df[:70], prox_map, K)
+    results = print_prox_map(df, prox_map, K)
     print_time = time() - now
     
+    with open('out.csv', 'w') as f:
+        f.write(results.replace('\t', ','))
+        
     #print(results)
-    print(len(prox_map))
+    print('Calculated', len(prox_map), 'proximities')
     print('Transform', transformation_time)
     print('Calculate', calculate_time)
     print('Print', print_time)
