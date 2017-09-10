@@ -189,36 +189,24 @@ def print_prox_map(df: DataFrame, prox_map: dict, k: int) -> str:
     # Print headers
     out = print_header(k)
 
-    for i, left in df.iterrows():
+    for i, row in df.iterrows():
         prox_map[i].sort(key = lambda x: x[0], reverse = True)
-        out += print_proximities(left['ID'], prox_map[i][:k])
+        out += print_proximities(row['ID'], prox_map[i][:k])
 
     return out
 
 
 def fast_calculate(df: DataFrame, k: int) -> None:
     """optimized variation over calculate()"""
-    # https://stackoverflow.com/questions/7837722/what-is-the-most-efficient-way-to-loop-through-dataframes-with-pandas
-    
     # We first extract every series immediately, as every time
     # df.iterrows() is called, it creates a new Series instance
     # per iteration.
-    series_set = [x for i, x, in df.iterrows()]
+    series_set = [x for i, x in df.iterrows()]
     
-    """
-        N = len(rows)
-        i = 0
-        
-        for i in range(0, N):
-            L <- row[i]
-            for j in range(i + 1, N):
-                R <- row[j]
-                p = proximity(L, R)
-                map[L] <- (p, R)
-                map[R] <- (p, L)
-    """
     n = len(series_set)
-    prox_map = [[]] * n # pre-allocate for all indices
+    prox_map = [[] for _ in range(n)] # Preallocate indices
+    
+    #prox_map = {}
     
     # Iterate through, performing proximity comparisons
     # forward of each index. Should be about O(nlog(n))
