@@ -71,6 +71,20 @@ def jaccard(left: Series, right: Series, cols: list) -> float:
     m01, m10, m00, m11 = count_binary_vectors(left, right, cols)
     return m11 / (m01 + m10 + m11)
 
+def fast_jaccard(left: list, right: list) -> float:
+    m01 = m10 = m00 = m11 = 0
+    for i, l in enumerate(left):
+        if l == 0:
+            if right[i] == 0:
+                m00 += 1
+            else:
+                m01 += 1
+        elif right[i] == 0:
+            m10 += 1
+        else:
+            m11 += 1
+
+    return m11 / (m01 + m10 + m11)
 
 def cosine_similarity(a: tuple, b: tuple) -> float:
     """calculate the cosine similarity between two vectors 
@@ -133,11 +147,18 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
         # for categoricals we expanded out into dummy variables,
         # we perform SMC (0 relevant) or Jaccard (for long 0 sequences)
         smc(left, right, get_dummy_variables(df, 'gender')),
-        jaccard(left, right, get_dummy_variables(df, 'race')),
-        jaccard(left, right, get_dummy_variables(df, 'workclass')),
-        jaccard(left, right, get_dummy_variables(df, 'marital_status')),
-        jaccard(left, right, get_dummy_variables(df, 'relationship')),
-        jaccard(left, right, get_dummy_variables(df, 'native_country')),
+        #jaccard(left, right, get_dummy_variables(df, 'race')),
+        #jaccard(left, right, get_dummy_variables(df, 'workclass')),
+        #jaccard(left, right, get_dummy_variables(df, 'marital_status')),
+        #jaccard(left, right, get_dummy_variables(df, 'relationship')),
+        #jaccard(left, right, get_dummy_variables(df, 'native_country')),
+        
+        fast_jaccard(left['race_vec'], right['race_vec']),
+        fast_jaccard(left['workclass_vec'], right['workclass_vec']),
+        fast_jaccard(left['marital_status_vec'], right['marital_status_vec']),
+        fast_jaccard(left['relationship_vec'], right['relationship_vec']),
+        fast_jaccard(left['native_country_vec'], right['native_country_vec']),
+        fast_jaccard(left['occupation_vec'], right['occupation_vec']),
         
         # For intervals, we do a basic distance calculation 1/(1+|p-q|)
         distance(left, right, 'age'),
@@ -241,6 +262,9 @@ def create_dummy_variables(df: DataFrame, cat: str) -> None:
     uniques = [x for x in df[cat].unique()]
     for u in uniques:
         df[u] = df[cat].apply(lambda x: int(x == u))
+    
+    # Add a cache for fast vector lookup
+    df[cat + '_vec'] = df.apply(lambda r: r[uniques].tolist(), axis = 1)
     
     
 def apply_base_transformations(df: DataFrame) -> None:
