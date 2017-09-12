@@ -6,18 +6,12 @@ Created on Fri Sep  8 20:55:15 2017
 """
 
 import math
+import argparse
 import pandas
 from time import time
 from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 
-# CSV_FILE = "C:\\Users\\Chase\\Downloads\\income_tr.csv"
-CSV_FILE  = "samples/income_tr.csv"
-
-# Significant figures of similarity values to output
-SIGFIGS = 3
-
-K = 4
 # Lookup cache for dummy variables
 # Avoids frequent list comprehension
 g_dummy_cache = {}
@@ -136,12 +130,12 @@ def print_header(k: int) -> str:
     return 'ID\t' + '\t'.join(cols) + '\n'
         
 
-def print_proximities(id: str, p_arr: list) -> str:
+def print_proximities(id: str, p_arr: list, sigfigs: int) -> str:
     """
     id: id value to print
     p_array: proximity list to print (list of tuples)
     """
-    cols = [str(x[1]) + '\t' + str(round(x[0], SIGFIGS)) for x in p_arr]
+    cols = [str(x[1]) + '\t' + str(round(x[0], sigfigs)) for x in p_arr]
     return str(id) + '\t' + '\t'.join(cols) + '\n'
 
 
@@ -158,6 +152,7 @@ def get_dummy_variables(df: DataFrame, col: str) -> list:
 def proximity(df: DataFrame, left: Series, right: Series) -> float:
     """calculate proximity between two records
 
+    df: Pandas DataFrame
     left: Pandas series
     right: Pandas series
     """
@@ -179,6 +174,7 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
         fast_jaccard(left['occupation_vec'], right['occupation_vec']),
         
         # For intervals, we do a basic distance calculation 1/(1+|p-q|)
+        # TODO: 0 rejection? Need to see if the data has some bad values or not
         distance(left, right, 'age'),
         distance(left, right, 'education_cat'),
         distance(left, right, 'hour_per_week')
@@ -260,7 +256,7 @@ def calculate(df: DataFrame, k: int) -> dict:
     return prox_map
 
 
-def print_prox_map(df: DataFrame, prox_map: dict, k: int) -> str:
+def print_prox_map(df: DataFrame, prox_map: dict, k: int, sigfigs: int) -> str:
     """create a matrix of proximities
     
     """
@@ -269,12 +265,12 @@ def print_prox_map(df: DataFrame, prox_map: dict, k: int) -> str:
 
     for i, row in df.iterrows():
         prox_map[i].sort(key = lambda x: x[0], reverse = True)
-        out += print_proximities(row['ID'], prox_map[i][:k])
+        out += print_proximities(row['ID'], prox_map[i][:k], sigfigs)
 
     return out
 
 
-def fast_calculate(df: DataFrame, k: int) -> None:
+def fast_calculate(df: DataFrame, k: int, prox_func) -> None:
     """optimized variation over calculate()"""
     # We first extract every series immediately, as every time
     # df.iterrows() is called, it creates a new Series instance
@@ -288,15 +284,6 @@ def fast_calculate(df: DataFrame, k: int) -> None:
     
     # Iterate through, performing proximity comparisons
     # forward of each index. Should be about O(nlog(n))
-    
-    # Still seeing ~ 4s for 50, 15s for 100, 60s for 200.
-    # Iteration time *without* proximity() is 1.5s 
-    
-    # Implementing dummy_cache gives us:
-    # ~1.7s for 50, ~8s for 100, 35s for 200
-    
-    # Implementing fast_jaccard (the biggest bottleneck):
-    # ~1s for 100, ~5s for 200, ~35s for 520
     for i in range(0, n):
         left = series_set[i]
         l_id = left['ID']
@@ -304,7 +291,7 @@ def fast_calculate(df: DataFrame, k: int) -> None:
             right = series_set[j]
             r_id = right['ID']
             
-            p = proximity(df, left, right)
+            p = prox_func(df, left, right)
             prox_map[i].append((p, r_id))
             prox_map[j].append((p, l_id))
             
@@ -317,7 +304,7 @@ def create_dummy_variables(df: DataFrame, cat: str) -> None:
     """
     # some may have " ?" as a category, clean these out first
     # so there aren't collisions later on
-    df[cat] = df[cat].apply(lambda x: x if x != ' ?' else cat + '-unk')
+    df[cat] = df[cat].apply(lambda x: x if x.strip() != '?' else cat + '-unk')
     
     uniques = [x for x in df[cat].unique()]
     for u in uniques:
@@ -344,29 +331,85 @@ def apply_base_transformations(df: DataFrame) -> None:
     create_dummy_variables(df, 'relationship')
     create_dummy_variables(df, 'occupation')
     
-if __name__ == '__main__':
-    df = pandas.read_csv(CSV_FILE)
     
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Income proximities'
+    )
+    
+    parser.add_argument(
+        '--k', 
+        default=4, 
+        type=int, 
+        help='K-value'
+    )
+    parser.add_argument(
+        '--limit', 
+        default=0, 
+        type=int, 
+        help='Record limit to analyze'
+    )
+    parser.add_argument(
+        '--alt', 
+        action='store_true',
+        help='Use alternate proximity algorithm'
+    )
+    parser.add_argument(
+        '--sig',
+        default=3,
+        type=int,
+        help='Number of sigfigs in proximity table'        
+    )
+    parser.add_argument(
+        '--output', 
+        help='Output CSV filename'
+    )
+    parser.add_argument('filename')
+    
+    args = parser.parse_args()
+    
+    # Load source file
+    df = pandas.read_csv(args.filename)
+    
+    # Get a subset of rows, if requested
+    if args.limit:
+        df = df[:args.limit]
+    
+    # Apply initial transformations
     now = time()
     apply_base_transformations(df)
     transformation_time = time() - now
 
     now = time()
-    prox_map = fast_calculate(df, K)
+    
+    # Load either the main or alternative proximity function
+    prox_func = proximity
+    if args.alt:
+        prox_func = alt_proximity
+    
+    # Calculate proximities
+    prox_map = fast_calculate(df, args.k, prox_func)
     calculate_time = time() - now
     
+    # Generate a proxmity map
     now = time()
-    results = print_prox_map(df, prox_map, K)
+    results = print_prox_map(df, prox_map, args.k, args.sig)
+    
+    # Write to either the output file or to console
+    if args.output:
+        with open(args.output, 'w') as f:
+            f.write(results.replace('\t', ','))
+        print('Wrote results to {}'.format(args.output))
+    else:
+        print(results)
+        
     print_time = time() - now
     
-    with open('out.csv', 'w') as f:
-        f.write(results.replace('\t', ','))
-        
-    #print(results)
-    print('Calculated', len(prox_map), 'proximities')
-    print('Transform', transformation_time)
-    print('Calculate', calculate_time)
-    print('Print', print_time)
-    
-    
+    # Spit out some basic runtime statistics
+    print('Transformed in {:.3f} seconds'.format(transformation_time))
+    print('Calculated {} proximities in {:.3f} seconds'.format(
+        len(prox_map), 
+        calculate_time
+    ))
+    print('Printed in {:.3f} seconds'.format(print_time))
     
