@@ -18,16 +18,21 @@ CSV_FILE  = "samples/income_tr.csv"
 SIGFIGS = 3
 
 K = 4
-
+# Lookup cache for dummy variables
+# Avoids frequent list comprehension
 g_dummy_cache = {}
 
-def dot(left: tuple, right: tuple) -> float:
+# Lookup cache for row vectors calculated
+# in alt_proximity
+g_vec_cache = {}
+
+def dot(left: list, right: list) -> float:
     """generic dot product between two arbitrary vectors
 
-    left: tuple vector
-    right: tuple vector
+    left: vector
+    right: vector
     """
-    return sum(x[0] * x[1] for x in zip(left, right))
+    return sum(float(x[0]) * x[1] for x in zip(left, right))
 
 
 def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
@@ -77,6 +82,7 @@ def jaccard(left: Series, right: Series, cols: list) -> float:
     m01, m10, m00, m11 = count_binary_vectors(left, right, cols)
     return m11 / (m01 + m10 + m11)
 
+
 def fast_jaccard(left: list, right: list) -> float:
     m01 = m10 = m00 = m11 = 0
     for i, l in enumerate(left):
@@ -92,16 +98,20 @@ def fast_jaccard(left: list, right: list) -> float:
 
     return m11 / (m01 + m10 + m11)
 
-def cosine_similarity(a: tuple, b: tuple) -> float:
+
+def cosine_similarity(left: list, right: list) -> float:
     """calculate the cosine similarity between two vectors 
+    
+    left: vector
+    right: vector
     """
     # (dot(a, b) / (||a|| * ||b||))
     
-    dab = dot(a, b)
-    mag_a = math.sqrt(dot(a, a))
-    mag_b = math.sqrt(dot(b, b))
+    d = dot(left, right)
+    l_mag = math.sqrt(dot(left, left))
+    r_mag = math.sqrt(dot(right, right))
 
-    return dab / (mag_a * mag_b)
+    return d / (l_mag * r_mag)
 
 
 def distance(left: Series, right: Series, col: str) -> float:
@@ -186,6 +196,45 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
     # calculated per attribute (or set of attributes)
     return sum(vector) / len(vector)
 
+
+def alt_proximity(df: DataFrame, left: Series, right: Series) -> float:
+    """alternative proximity function for two records
+    
+    This proximity method vectorizes the entire row and 
+    performs a simple cosine similarity between left and right.
+    
+    df: Pandas DataFrame
+    left: Pandas series
+    right: Pandas series
+    """
+    def vectorize(s: Series) -> list:
+        if s['ID'] not in g_vec_cache:
+            # Aggregate vector caches
+            v = s['gender_vec'] + s['race_vec'] + s['workclass_vec'] \
+                + s['marital_status_vec'] + s['relationship_vec'] \
+                + s['native_country_vec'] + s['occupation_vec']
+                
+            # Aggregate other numeric attributes
+            # normalized to min/max of each attribute
+            # so that they don't overtake one another for cos-sim.
+            # Note I hardcode these to the full income_tr 
+            # dataset. I *could* read during initial transfoms
+            # and cache, but... meh. 
+            g_vec_cache[s['ID']] = v + [
+                1 - (s['age'] - 17) / (82 - 17),  # 17 - 82
+                1 - (s['education_cat'] - 1) / (16 - 1),  # 1 - 16
+                1 - (s['hour_per_week'] - 2) / (99 - 2),  # 2 - 99
+                1 - s['capital_gain'] / 99999,  # 0 - 99999
+                1 - s['capital_loss'] / 4356 # 0 - 4356
+            ]
+            
+        return g_vec_cache[s['ID']]
+        
+    return cosine_similarity(
+        vectorize(left),
+        vectorize(right)
+    )
+    
 
 def calculate(df: DataFrame, k: int) -> dict:
     """naive implementation of calculating proximities.
