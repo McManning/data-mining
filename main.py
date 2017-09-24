@@ -31,7 +31,7 @@ def dot(left: list, right: list) -> float:
 
 def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
     """create an (m01, m10, m00, m11) tuple by counting matches in cols
-        
+
     left: vector
     right: vector
     cols: list of column names to include in the subvector
@@ -49,14 +49,14 @@ def count_binary_vectors(left: Series, right: Series, cols: tuple) -> tuple:
             m00 += 1
         else:
             m01 += 1
-            
+
     return (m01, m10, m00, m11)
 
 
 def smc(left: Series, right: Series, cols: list) -> float:
     """create a simple matching coefficient of specified columns
         within two vectors
-        
+
     left: vector
     right: vector
     cols: list of column names to include in the subvector
@@ -68,7 +68,7 @@ def smc(left: Series, right: Series, cols: list) -> float:
 def jaccard(left: Series, right: Series, cols: list) -> float:
     """create a Jaccard coefficient of specified columns
         within two vectors
-        
+
     left: vector
     right: vector
     cols: list of column names to include in the subvector
@@ -78,29 +78,34 @@ def jaccard(left: Series, right: Series, cols: list) -> float:
 
 
 def fast_jaccard(left: list, right: list) -> float:
-    m01 = m10 = m00 = m11 = 0
-    for i, l in enumerate(left):
-        if l == 0:
-            if right[i] == 0:
-                m00 += 1
+    try:
+        m01 = m10 = m00 = m11 = 0
+        for i, l in enumerate(left):
+            if l == 0:
+                if i >= len(right) or right[i] == 0:
+                    m00 += 1
+                else:
+                    m01 += 1
+            elif i >= len(right) or right[i] == 0:
+                m10 += 1
             else:
-                m01 += 1
-        elif right[i] == 0:
-            m10 += 1
-        else:
-            m11 += 1
+                m11 += 1
+    except:
+        print(left)
+        print(right)
+        raise
 
     return m11 / (m01 + m10 + m11)
 
 
 def cosine_similarity(left: list, right: list) -> float:
-    """calculate the cosine similarity between two vectors 
-    
+    """calculate the cosine similarity between two vectors
+
     left: vector
     right: vector
     """
     # (dot(a, b) / (||a|| * ||b||))
-    
+
     d = dot(left, right)
     l_mag = math.sqrt(dot(left, left))
     r_mag = math.sqrt(dot(right, right))
@@ -110,7 +115,7 @@ def cosine_similarity(left: list, right: list) -> float:
 
 def distance(left: Series, right: Series, col: str) -> float:
     """basic distance calculation of an interval attribute
-    
+
     left: Pandas series
     right: Pandas series
     col: interval attribute name
@@ -118,7 +123,7 @@ def distance(left: Series, right: Series, col: str) -> float:
     return 1 / (1 + abs(left[col] - right[col]))
 
 
-def print_header(k: int) -> str:
+def print_prox_map_header(k: int) -> str:
     """
     k: number of proximity columns to print
     """
@@ -128,7 +133,7 @@ def print_header(k: int) -> str:
 
     cols = [ordinal(x+1) + '\t' + str(x+1) + '-prox' for x in range(k)]
     return 'ID\t' + '\t'.join(cols) + '\n'
-        
+
 
 def print_proximities(id: str, p_arr: list, sigfigs: int) -> str:
     """
@@ -145,9 +150,9 @@ def get_dummy_variables(df: DataFrame, col: str) -> list:
     # Uses a cache so we don't have to constantly do list comprehension
     if col not in g_dummy_cache:
         g_dummy_cache[col] = [x for x in df[col].unique()]
-        
+
     return g_dummy_cache[col]
-    
+
 
 def proximity(df: DataFrame, left: Series, right: Series) -> float:
     """calculate proximity between two records
@@ -156,7 +161,7 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
     left: Pandas series
     right: Pandas series
     """
-    vector = [ 
+    vector = [
         # for categoricals we expanded out into dummy variables,
         # we perform SMC (0 relevant) or Jaccard (for long 0 sequences)
         smc(left, right, get_dummy_variables(df, 'gender')),
@@ -165,29 +170,29 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
         #jaccard(left, right, get_dummy_variables(df, 'marital_status')),
         #jaccard(left, right, get_dummy_variables(df, 'relationship')),
         #jaccard(left, right, get_dummy_variables(df, 'native_country')),
-        
+
         fast_jaccard(left['race_vec'], right['race_vec']),
         fast_jaccard(left['workclass_vec'], right['workclass_vec']),
         fast_jaccard(left['marital_status_vec'], right['marital_status_vec']),
         fast_jaccard(left['relationship_vec'], right['relationship_vec']),
         fast_jaccard(left['native_country_vec'], right['native_country_vec']),
         fast_jaccard(left['occupation_vec'], right['occupation_vec']),
-        
+
         # For intervals, we do a basic distance calculation 1/(1+|p-q|)
         # TODO: 0 rejection? Need to see if the data has some bad values or not
         distance(left, right, 'age'),
         distance(left, right, 'education_cat'),
         distance(left, right, 'hour_per_week')
     ]
-    
-    # For sparse data with some major outliers, we'll ignore 0's 
-    # and just use distance 
+
+    # For sparse data with some major outliers, we'll ignore 0's
+    # and just use distance
     if left['capital_gain'] > 0 or right['capital_gain'] > 0:
         vector.append(distance(left, right, 'capital_gain'))
-    
+
     if left['capital_loss'] > 0 or right['capital_loss'] > 0:
         vector.append(distance(left, right, 'capital_loss'))
-    
+
     # Finally perform a combined similarity of all the similarities
     # calculated per attribute (or set of attributes)
     return sum(vector) / len(vector)
@@ -195,10 +200,10 @@ def proximity(df: DataFrame, left: Series, right: Series) -> float:
 
 def alt_proximity(df: DataFrame, left: Series, right: Series) -> float:
     """alternative proximity function for two records
-    
-    This proximity method vectorizes the entire row and 
+
+    This proximity method vectorizes the entire row and
     performs a simple cosine similarity between left and right.
-    
+
     df: Pandas DataFrame
     left: Pandas series
     right: Pandas series
@@ -209,13 +214,13 @@ def alt_proximity(df: DataFrame, left: Series, right: Series) -> float:
             v = s['gender_vec'] + s['race_vec'] + s['workclass_vec'] \
                 + s['marital_status_vec'] + s['relationship_vec'] \
                 + s['native_country_vec'] + s['occupation_vec']
-                
+
             # Aggregate other numeric attributes
             # normalized to min/max of each attribute
             # so that they don't overtake one another for cos-sim.
-            # Note I hardcode these to the full income_tr 
+            # Note I hardcode these to the full income_tr
             # dataset. I *could* read during initial transfoms
-            # and cache, but... meh. 
+            # and cache, but... meh.
             g_vec_cache[s['ID']] = v + [
                 1 - (s['age'] - 17) / (82 - 17),  # 17 - 82
                 1 - (s['education_cat'] - 1) / (16 - 1),  # 1 - 16
@@ -223,23 +228,23 @@ def alt_proximity(df: DataFrame, left: Series, right: Series) -> float:
                 1 - s['capital_gain'] / 99999,  # 0 - 99999
                 1 - s['capital_loss'] / 4356 # 0 - 4356
             ]
-            
+
         return g_vec_cache[s['ID']]
-        
+
     return cosine_similarity(
         vectorize(left),
         vectorize(right)
     )
-    
+
 
 def calculate(df: DataFrame, k: int) -> dict:
     """naive implementation of calculating proximities.
-    
+
         tl;dr:
             for left in rows:
                 for right in rows:
                     map <- proximity(left, right)
-                    
+
         Fine for small number of rows, but performance
         is impacted exponentially for large rowsets.
     """
@@ -252,16 +257,16 @@ def calculate(df: DataFrame, k: int) -> dict:
                 prox_map[i].append(
                     (proximity(df, left, right), right['ID'])
                 )
-                
+
     return prox_map
 
 
 def print_prox_map(df: DataFrame, prox_map: dict, k: int, sigfigs: int) -> str:
     """create a matrix of proximities
-    
+
     """
     # Print headers
-    out = print_header(k)
+    out = print_prox_map_header(k)
 
     for i, row in df.iterrows():
         prox_map[i].sort(key = lambda x: x[0], reverse = True)
@@ -270,18 +275,18 @@ def print_prox_map(df: DataFrame, prox_map: dict, k: int, sigfigs: int) -> str:
     return out
 
 
-def fast_calculate(df: DataFrame, k: int, prox_func) -> None:
+def fast_calculate(df: DataFrame, k: int, prox_func) -> list:
     """optimized variation over calculate()"""
     # We first extract every series immediately, as every time
     # df.iterrows() is called, it creates a new Series instance
     # per iteration.
     series_set = [x for i, x in df.iterrows()]
-    
+
     n = len(series_set)
     prox_map = [[] for _ in range(n)] # Preallocate indices
-    
+
     #prox_map = {}
-    
+
     # Iterate through, performing proximity comparisons
     # forward of each index. Should be about O(nlog(n))
     for i in range(0, n):
@@ -290,13 +295,13 @@ def fast_calculate(df: DataFrame, k: int, prox_func) -> None:
         for j in range(i + 1, n):
             right = series_set[j]
             r_id = right['ID']
-            
+
             p = prox_func(df, left, right)
             prox_map[i].append((p, r_id))
             prox_map[j].append((p, l_id))
-            
+
     return prox_map
-    
+
 
 def create_dummy_variables(df: DataFrame, cat: str) -> None:
     """expand a categorical attribute into dummy variables
@@ -305,23 +310,23 @@ def create_dummy_variables(df: DataFrame, cat: str) -> None:
     # some may have " ?" as a category, clean these out first
     # so there aren't collisions later on
     df[cat] = df[cat].apply(lambda x: x if x.strip() != '?' else cat + '-unk')
-    
+
     uniques = [x for x in df[cat].unique()]
     for u in uniques:
         df[u] = df[cat].apply(lambda x: int(x == u))
-    
+
     # Add a cache for fast vector lookup
     df[cat + '_vec'] = df.apply(lambda r: r[uniques].tolist(), axis = 1)
-    
-    
+
+
 def apply_base_transformations(df: DataFrame) -> None:
     """apply initial transformations to normalize/binarize attributes
-    
+
     df: Pandas DataFrame to transform
     """
     # Transformation rules are based on initial data exploration
     # of the income dataset
-    
+
     # Expand categorical attributes we care about
     create_dummy_variables(df, 'gender')
     create_dummy_variables(df, 'race')
@@ -330,27 +335,166 @@ def apply_base_transformations(df: DataFrame) -> None:
     create_dummy_variables(df, 'marital_status')
     create_dummy_variables(df, 'relationship')
     create_dummy_variables(df, 'occupation')
-    
-    
+
+
+def knn_majority_vote(proximities: list, k: int):
+    """calculate class by majority vote
+
+        Accepts a list of tuples (prox, class) and
+        returns a class and a posterior probability in [0,1]
+    """
+    classes = dict()
+
+    # sort proximities by closest first
+    proximities.sort(key = lambda x: x[0], reverse = True)
+
+    # Grab the majority class of the k-nearest proximities
+    for i in range(k):
+        if proximities[i][1] not in classes:
+            classes[proximities[i][1]] = 0
+
+        classes[proximities[i][1]] += 1
+
+    keys = list(classes.keys())
+    v = list(classes.values())
+
+    selected_class = keys[v.index(max(v))]
+
+    return selected_class, max(v) / k
+
+def knn_classifier_k_sweep(
+    training_df: DataFrame,
+    test_df: DataFrame,
+    k_limit: int,
+    prox_func
+):
+    """runs the bulk of generating a prox map and then does a sweep of
+        a range of K values, outputting match percentages for each
+    """
+    training_set = [x for i, x in training_df.iterrows()]
+    test_set = [x for i, x in test_df.iterrows()]
+
+    training_len = len(training_set)
+    test_len = len(test_set)
+
+    prox_map = [[] for _ in range(test_len)] # Preallocate indices
+
+    # Generate proximities between everything in the
+    # test set against everything in the training set
+    for i in range(0, test_len):
+        left = test_set[i]
+        for j in range(0, training_len):
+            right = training_set[j]
+
+            p = prox_func(training_df, left, right)
+            prox_map[i].append((p, right['class']))
+
+    for k in range(1, k_limit):
+        for i in range(0, test_len):
+            positives = 0
+
+            # Calculate class and add to classification map as:
+            # (test ID, actual class, predicted class, posterior prob)
+            predicted_class, probability = knn_majority_vote(prox_map[i], k)
+
+            if predicted_class == test_set[i]['class']:
+                positives += 1
+
+        print('k={}\t{}'.format(k, round(positives / test_len, 5)))
+
+
+def knn_classifier(
+    training_df: DataFrame,
+    test_df: DataFrame,
+    k: int,
+    prox_func
+) -> list:
+    """kNN classifier"""
+    training_set = [x for i, x in training_df.iterrows()]
+    test_set = [x for i, x in test_df.iterrows()]
+
+    training_len = len(training_set)
+    test_len = len(test_set)
+
+    prox_map = [[] for _ in range(test_len)] # Preallocate indices
+    classification_map = []
+
+    # Generate proximities between everything in the
+    # test set against everything in the training set
+    for i in range(0, test_len):
+        left = test_set[i]
+        for j in range(0, training_len):
+            right = training_set[j]
+
+            p = prox_func(training_df, left, right)
+            prox_map[i].append((p, right['class']))
+
+        # Calculate class and add to classification map as:
+        # (test ID, actual class, predicted class, posterior prob)
+        predicted_class, probability = knn_majority_vote(prox_map[i], k)
+        classification_map.append((
+            left['ID'],
+            left['class'],
+            predicted_class,
+            probability
+        ))
+
+    return classification_map
+
+
+def print_knn_classifier_header() -> str:
+    return 'ID\tActual\tPredicted\tPosterior Probability\n'
+
+
+def print_knn_classification(classification: tuple) -> str:
+    """
+
+    classification: tuple in the form of (ID, actual class, predicted class, probability)
+    """
+    return '{}\t{}\t{}\t{}\n'.format(*classification)
+
+
+def print_classification_map(classifications: list) -> str:
+
+    # Print headers
+    out = print_knn_classifier_header()
+
+    for classification in classifications:
+        out += print_knn_classification(classification)
+
+    return out
+
+
+def print_knn_accuracy(classifications: list):
+    """dump an accuracy report to console"""
+
+    correct = 0
+    for classification in classifications:
+        if classification[1] == classification[2]:
+            correct += 1
+
+    print(str(round(correct / len(classifications), 5)) + ' match to test classes')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Income proximities'
     )
-    
+
     parser.add_argument(
-        '--k', 
-        default=4, 
-        type=int, 
+        '--k',
+        default=4,
+        type=int,
         help='K-value'
     )
     parser.add_argument(
-        '--limit', 
-        default=0, 
-        type=int, 
+        '--limit',
+        default=0,
+        type=int,
         help='Record limit to analyze'
     )
     parser.add_argument(
-        '--alt', 
+        '--alt',
         action='store_true',
         help='Use alternate proximity algorithm'
     )
@@ -358,43 +502,96 @@ if __name__ == '__main__':
         '--sig',
         default=3,
         type=int,
-        help='Number of sigfigs in proximity table'        
+        help='Number of sigfigs in proximity table'
     )
     parser.add_argument(
-        '--output', 
+        '--output',
         help='Output CSV filename'
     )
+    parser.add_argument(
+        '--knn',
+        action='store_true',
+        help='Run kNN classifier'
+    )
+    parser.add_argument(
+        '--test',
+        help='Test dataset CSV filename'
+    )
     parser.add_argument('filename')
-    
+
     args = parser.parse_args()
-    
-    # Load source file
-    df = pandas.read_csv(args.filename)
-    
-    # Get a subset of rows, if requested
+
+    # Load training file
+    training_df = pandas.read_csv(args.filename)
+
+    if args.test:
+        test_df = pandas.read_csv(args.test)
+
+    # Get a subset of training rows, if requested
     if args.limit:
-        df = df[:args.limit]
-    
+        training_df = training_df[:args.limit]
+
     # Apply initial transformations
     now = time()
-    apply_base_transformations(df)
+
+    apply_base_transformations(training_df)
+    if args.test:
+        apply_base_transformations(test_df)
+
     transformation_time = time() - now
 
     now = time()
-    
+
     # Load either the main or alternative proximity function
     prox_func = proximity
     if args.alt:
         prox_func = alt_proximity
-    
-    # Calculate proximities
-    prox_map = fast_calculate(df, args.k, prox_func)
-    calculate_time = time() - now
-    
-    # Generate a proxmity map
-    now = time()
-    results = print_prox_map(df, prox_map, args.k, args.sig)
-    
+
+    # Calculate proximities of everything in the training set
+    if not args.knn:
+        prox_map = fast_calculate(
+            training_df,
+            args.k,
+            prox_func
+        )
+
+        calculate_time = time() - now
+
+        # Generate a proxmity map
+        now = time()
+        results = print_prox_map(
+            training_df,
+            prox_map,
+            args.k,
+            args.sig
+        )
+
+    # Run a kNN classifier between the training and test sets
+    else:
+        # knn_classifier_k_sweep(
+        #     training_df,
+        #     test_df,
+        #     60,
+        #     prox_func
+        # )
+
+        classification_map = knn_classifier(
+            training_df,
+            test_df,
+            args.k,
+            prox_func
+        )
+
+        calculate_time = time() - now
+
+        # Generate classifier test results table
+        now = time()
+        results = print_classification_map(
+            classification_map
+        )
+
+        print_knn_accuracy(classification_map)
+
     # Write to either the output file or to console
     if args.output:
         with open(args.output, 'w') as f:
@@ -402,14 +599,10 @@ if __name__ == '__main__':
         print('Wrote results to {}'.format(args.output))
     else:
         print(results)
-        
+
     print_time = time() - now
-    
+
     # Spit out some basic runtime statistics
     print('Transformed in {:.3f} seconds'.format(transformation_time))
-    print('Calculated {} proximities in {:.3f} seconds'.format(
-        len(prox_map), 
-        calculate_time
-    ))
+    print('Processed in {:.3f} seconds'.format(calculate_time))
     print('Printed in {:.3f} seconds'.format(print_time))
-    
