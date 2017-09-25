@@ -362,11 +362,42 @@ def knn_majority_vote(proximities: list, k: int):
 
     return selected_class, max(v) / k
 
+
+def knn_weighted(proximities: list, k: int):
+    """calculate class by proximity distances
+
+        Accepts a list of tuples (prox, class) and
+        returns a class and a posterior probability in [0,1]
+    """
+    classes = dict()
+
+    # sort proximities by closest first
+    proximities.sort(key = lambda x: x[0], reverse = True)
+
+    # for k-nearest proximities, sum their proximities
+    # under their class
+    for i in range(k):
+        if proximities[i][1] not in classes:
+            classes[proximities[i][1]] = 0
+
+        classes[proximities[i][1]] += 1 / (proximities[i][0] ** 2)
+
+    keys = list(classes.keys())
+    v = list(classes.values())
+
+    # Pick the one with the largest aggregate distance
+    selected_class = keys[v.index(max(v))]
+
+    return selected_class, max(v) / sum(v)
+
+
+
 def knn_classifier_k_sweep(
     training_df: DataFrame,
     test_df: DataFrame,
     k_limit: int,
-    prox_func
+    prox_func,
+    knn_func
 ):
     """runs the bulk of generating a prox map and then does a sweep of
         a range of K values, outputting match percentages for each
@@ -395,7 +426,7 @@ def knn_classifier_k_sweep(
 
             # Calculate class and add to classification map as:
             # (test ID, actual class, predicted class, posterior prob)
-            predicted_class, probability = knn_majority_vote(prox_map[i], k)
+            predicted_class, probability = knn_func(prox_map[i], k)
 
             if predicted_class == test_set[i]['class']:
                 positives += 1
@@ -407,7 +438,8 @@ def knn_classifier(
     training_df: DataFrame,
     test_df: DataFrame,
     k: int,
-    prox_func
+    prox_func,
+    knn_func
 ) -> list:
     """kNN classifier"""
     training_set = [x for i, x in training_df.iterrows()]
@@ -431,7 +463,7 @@ def knn_classifier(
 
         # Calculate class and add to classification map as:
         # (test ID, actual class, predicted class, posterior prob)
-        predicted_class, probability = knn_majority_vote(prox_map[i], k)
+        predicted_class, probability = knn_func(prox_map[i], k)
         classification_map.append((
             left['ID'],
             left['class'],
@@ -514,6 +546,11 @@ if __name__ == '__main__':
         help='Run kNN classifier'
     )
     parser.add_argument(
+        '--weighted',
+        action='store_true',
+        help='Use weighted distances for kNN classifier'
+    )
+    parser.add_argument(
         '--test',
         help='Test dataset CSV filename'
     )
@@ -547,6 +584,11 @@ if __name__ == '__main__':
     if args.alt:
         prox_func = alt_proximity
 
+    # Load either majority vote or weighted kNN function
+    knn_func = knn_majority_vote
+    if args.weighted:
+        knn_func = knn_weighted
+
     # Calculate proximities of everything in the training set
     if not args.knn:
         prox_map = fast_calculate(
@@ -579,7 +621,8 @@ if __name__ == '__main__':
             training_df,
             test_df,
             args.k,
-            prox_func
+            prox_func,
+            knn_func
         )
 
         calculate_time = time() - now
