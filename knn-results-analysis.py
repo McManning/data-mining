@@ -5,8 +5,7 @@ Created on Mon Sep 25 14:18:34 2017
 @author: Chase
 """
 import pandas
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import LabelEncoder, label_binarize
+from sklearn.preprocessing import label_binarize
 
 import matplotlib.pyplot as plt
 
