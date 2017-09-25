@@ -378,7 +378,10 @@ def knn_weighted(proximities: list, k: int):
         Accepts a list of tuples (prox, class) and
         returns a class and a posterior probability in [0,1]
     """
-    classes = dict()
+    classes = {
+        ' >50K': 0, # positive test
+        ' <=50K': 0 # negative test
+    }
 
     # sort proximities by closest first
     proximities.sort(key = lambda x: x[0], reverse = True)
@@ -386,19 +389,23 @@ def knn_weighted(proximities: list, k: int):
     # for k-nearest proximities, sum their proximities
     # under their class
     for i in range(k):
-        if proximities[i][1] not in classes:
-            classes[proximities[i][1]] = 0
+        # if proximities[i][1] not in classes:
+        #    classes[proximities[i][1]] = 0
 
         classes[proximities[i][1]] += 1 / (proximities[i][0] ** 2)
 
-    keys = list(classes.keys())
-    v = list(classes.values())
-
-    # Pick the one with the largest aggregate distance
-    selected_class = keys[v.index(max(v))]
-
-    return selected_class, max(v) / sum(v)
-
+    # keys = list(classes.keys())
+    # v = list(classes.values())
+    # selected_class = keys[v.index(max(v))]
+    # return selected_class, max(v) / qk
+    if classes[' >50K'] > classes[' <=50K']:
+        selected_class = ' >50K'
+    else:
+        selected_class = ' <=50K'
+    
+    # posterior probability is the probability the result was in >50K (positive)
+    posterior_probability = classes[' >50K'] / sum(classes.values())
+    return selected_class, posterior_probability
 
 
 def knn_classifier_k_sweep(
