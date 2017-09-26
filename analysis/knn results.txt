@@ -1,0 +1,197 @@
+
+knn k=11
+
+Confusion
+ [[210  11]
+ [ 48  19]]
+Mean Square Error 0.204861111111
+Accuracy 0.795138888889
+Accuracy builtin 0.795138888889
+Specificity 0.950226244344
+Sensitivity 0.283582089552
+Recall builtin 0.283582089552
+Classification error 0.204861111111
+1-accuracy builtin 0.204861111111
+
+
+knn k=4
+
+Confusion
+ [[211  10]
+ [ 54  13]]
+Mean Square Error 0.222222222222
+Accuracy 0.777777777778
+Accuracy builtin 0.777777777778
+Specificity 0.954751131222
+Sensitivity 0.194029850746
+Recall builtin 0.194029850746
+Classification error 0.222222222222
+1-accuracy builtin 0.222222222222
+
+knn builtin with k=40
+
+Confusion
+ [[221   0]
+ [ 63   4]]
+Mean Square Error 0.21875
+Accuracy 0.78125
+Accuracy builtin 0.78125
+Specificity 1.0
+Sensitivity 0.0597014925373
+Recall builtin 0.0597014925373
+Classification error 0.21875
+1-accuracy builtin 0.21875
+
+knn k=11 alt
+
+Confusion
+ [[122  99]
+ [ 21  46]]
+Mean Square Error 0.416666666667
+Accuracy 0.583333333333
+Accuracy builtin 0.583333333333
+Specificity 0.552036199095
+Sensitivity 0.686567164179
+Recall builtin 0.686567164179
+Classification error 0.416666666667
+1-accuracy builtin 0.416666666667
+
+knn k=4 alt
+
+Confusion
+ [[167  54]
+ [ 30  37]]
+Mean Square Error 0.291666666667
+Accuracy 0.708333333333
+Accuracy builtin 0.708333333333
+Specificity 0.755656108597
+Sensitivity 0.55223880597
+Recall builtin 0.55223880597
+Classification error 0.291666666667
+1-accuracy builtin 0.291666666667
+
+knn k=40 alt
+
+Confusion
+ [[196  25]
+ [ 56  11]]
+Mean Square Error 0.28125
+Accuracy 0.71875
+Accuracy builtin 0.71875
+Specificity 0.886877828054
+Sensitivity 0.164179104478
+Recall builtin 0.164179104478
+Classification error 0.28125
+1-accuracy builtin 0.28125
+
+knn builtin k = 11
+
+Confusion
+ [[217   4]
+ [ 59   8]]
+Mean Square Error 0.21875
+Accuracy 0.78125
+Accuracy builtin 0.78125
+Specificity 0.981900452489
+Sensitivity 0.119402985075
+Recall builtin 0.119402985075
+Classification error 0.21875
+1-accuracy builtin 0.21875
+
+knn builtin k = 4
+
+Confusion
+ [[212   9]
+ [ 51  16]]
+Mean Square Error 0.20833333333333334
+Accuracy 0.791666666667
+Accuracy builtin 0.791666666667
+Specificity 0.9592760181
+Sensitivity 0.238805970149
+Recall builtin 0.238805970149
+Classification error 0.208333333333
+1-accuracy builtin 0.208333333333
+
+knn k = 40
+
+Confusion
+ [[218   3]
+ [ 60   7]]
+Mean Square Error 0.21875
+Accuracy 0.78125
+Accuracy builtin 0.78125
+Specificity 0.986425339367
+Sensitivity 0.10447761194
+Recall builtin 0.10447761194
+Classification error 0.21875
+1-accuracy builtin 0.21875
+
+knn k = 40 weighted
+
+Confusion
+ [[217   4]
+ [ 59   8]]
+Mean Square Error 0.21875
+Accuracy 0.78125
+Accuracy builtin 0.78125
+Specificity 0.981900452489
+Sensitivity 0.119402985075
+Recall builtin 0.119402985075
+Classification error 0.21875
+1-accuracy builtin 0.21875
+
+knn k = 60
+
+Confusion
+ [[219   2]
+ [ 65   2]]
+Mean Square Error 0.232638888889
+Accuracy 0.767361111111
+Accuracy builtin 0.767361111111
+Specificity 0.990950226244
+Sensitivity 0.0298507462687
+Recall builtin 0.0298507462687
+Classification error 0.232638888889
+1-accuracy builtin 0.232638888889
+
+knn k = 11 weighted
+
+Confusion
+ [[210  11]
+ [ 48  19]]
+Mean Square Error 0.204861111111
+Accuracy 0.795138888889
+Accuracy builtin 0.795138888889
+Specificity 0.950226244344
+Sensitivity 0.283582089552
+Recall builtin 0.283582089552
+Classification error 0.204861111111
+1-accuracy builtin 0.204861111111
+
+knn k = 4 weighted
+
+Confusion
+ [[201  20]
+ [ 49  18]]
+Mean Square Error 0.239583333333
+Accuracy 0.760416666667
+Accuracy builtin 0.760416666667
+Specificity 0.909502262443
+Sensitivity 0.268656716418
+Recall builtin 0.268656716418
+Classification error 0.239583333333
+1-accuracy builtin 0.239583333333
+
+knn k = 50 weighted
+
+Confusion
+ [[217   4]
+ [ 59   8]]
+Mean Square Error 0.21875
+Accuracy 0.78125
+Accuracy builtin 0.78125
+Specificity 0.981900452489
+Sensitivity 0.119402985075
+Recall builtin 0.119402985075
+Classification error 0.21875
+1-accuracy builtin 0.21875
