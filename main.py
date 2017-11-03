@@ -353,22 +353,15 @@ def knn_majority_vote(proximities: list, k: int):
 
     # Grab the majority class of the k-nearest proximities
     for i in range(k):
-       # if proximities[i][1] not in classes:
-       #     classes[proximities[i][1]] = 0
-
         classes[proximities[i][1]] += 1
 
-    # keys = list(classes.keys())
-    # v = list(classes.values())
-    # selected_class = keys[v.index(max(v))]
-    # return selected_class, max(v) / qk
-    if classes[' >50K'] > classes[' <=50K']:
+    # posterior probability is the probability the result was in >50K (positive)
+    posterior_probability = classes[' >50K'] / sum(classes.values())
+    if posterior_probability > 0.5:
         selected_class = ' >50K'
     else:
         selected_class = ' <=50K'
-    
-    # posterior probability is the probability the result was in >50K (positive)
-    posterior_probability = classes[' >50K'] / sum(classes.values())
+
     return selected_class, posterior_probability
 
 
@@ -394,60 +387,14 @@ def knn_weighted(proximities: list, k: int):
 
         classes[proximities[i][1]] += 1 / (proximities[i][0] ** 2)
 
-    # keys = list(classes.keys())
-    # v = list(classes.values())
-    # selected_class = keys[v.index(max(v))]
-    # return selected_class, max(v) / qk
-    if classes[' >50K'] > classes[' <=50K']:
+    # posterior probability is the probability the result was in >50K (positive)
+    posterior_probability = classes[' >50K'] / sum(classes.values())
+    if posterior_probability >= 0.5:
         selected_class = ' >50K'
     else:
         selected_class = ' <=50K'
-    
-    # posterior probability is the probability the result was in >50K (positive)
-    posterior_probability = classes[' >50K'] / sum(classes.values())
+
     return selected_class, posterior_probability
-
-
-def knn_classifier_k_sweep(
-    training_df: DataFrame,
-    test_df: DataFrame,
-    k_limit: int,
-    prox_func,
-    knn_func
-):
-    """runs the bulk of generating a prox map and then does a sweep of
-        a range of K values, outputting match percentages for each
-    """
-    training_set = [x for i, x in training_df.iterrows()]
-    test_set = [x for i, x in test_df.iterrows()]
-
-    training_len = len(training_set)
-    test_len = len(test_set)
-
-    prox_map = [[] for _ in range(test_len)] # Preallocate indices
-
-    # Generate proximities between everything in the
-    # test set against everything in the training set
-    for i in range(0, test_len):
-        left = test_set[i]
-        for j in range(0, training_len):
-            right = training_set[j]
-
-            p = prox_func(training_df, left, right)
-            prox_map[i].append((p, right['class']))
-
-    for k in range(1, k_limit):
-        for i in range(0, test_len):
-            positives = 0
-
-            # Calculate class and add to classification map as:
-            # (test ID, actual class, predicted class, posterior prob)
-            predicted_class, probability = knn_func(prox_map[i], k)
-
-            if predicted_class == test_set[i]['class']:
-                positives += 1
-
-        print('k={}\t{}'.format(k, round(positives / test_len, 5)))
 
 
 def knn_classifier(
@@ -626,13 +573,6 @@ if __name__ == '__main__':
 
     # Run a kNN classifier between the training and test sets
     else:
-        # knn_classifier_k_sweep(
-        #     training_df,
-        #     test_df,
-        #     60,
-        #     prox_func
-        # )
-
         classification_map = knn_classifier(
             training_df,
             test_df,

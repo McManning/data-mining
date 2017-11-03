@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix, accuracy_score, recall_score
 
-results = pandas.read_csv('results-knn-11.csv')
+results = pandas.read_csv('analysis/results-knn-80-alt.csv')
 
 y_true = label_binarize(results['Actual'], classes=[' <=50K', ' >50K'])
 y_score = results['Posterior Probability']
@@ -28,12 +28,18 @@ TN = confusion[0, 0]
 FP = confusion[0, 1]
 FN = confusion[1, 0]
 
+print('TN', TN, 'FP', FP)
+print('FN', FN, 'TP', TP)
+
 mse = (((y_pred_class - y_true) ** 2).sum()) / len(y_pred_class)
 print('Mean Square Error', mse)
 
 accuracy = (TP + TN) / float(TP + TN + FP + FN)
 print('Accuracy', accuracy)
 print('Accuracy builtin', accuracy_score(y_true, y_pred_class))
+
+precision = TP / (TP + FP)
+print('Precision', precision)
 
 specificity = TN / (TN + FP)
 print('Specificity', specificity)
@@ -86,3 +92,11 @@ plt.ylabel('True Positive Rate (Sensitivity)')
 plt.title('Receiver operator curve')
 plt.legend(loc='lower right')
 plt.show()
+
+
+# define a function that accepts a threshold and prints sensitivity and specificity
+def evaluate_threshold(threshold):
+    print('Sensitivity:', tpr[thresholds > threshold][-1])
+    print('Specificity:', 1 - fpr[thresholds > threshold][-1])
+    
+evaluate_threshold(0.5)

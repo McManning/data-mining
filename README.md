@@ -13,4 +13,10 @@ Fiddling with some introductory data mining
 `./main.py --k=4 --out results.csv --alt samples/income_tr.csv`
 * Generate a similarities table using the alternative algorithm (cosine similarity of a vectorization of each row) and write the resulting table to `results.csv`
 
+`./main.py --k=4 --knn --test samples/income_te.csv --out results.csv samples/income_tr.csv`
+* Run a k-Nearest Neighbor classifier against the test dataset (income_te) using the training dataset (income_tr) and outputting the results to `results.csv`. Uses majority votes for classification by default.
+
+`./main.py --k=4 --knn --weighted --test samples/income_te.csv --out results.csv samples/income_tr.csv`
+* Run a kNN classifier using weighted distances instead of majority votes against income_te and output the results to results.csv
+
 Additional options available via `--help`
