@@ -9,6 +9,14 @@ from pandas.core.frame import DataFrame
 from pandas.core.series import Series
 
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+# from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+
+IGNORED_COLUMNS = [
+    'cluster',
+    'quality',
+    'class'
+]
 
 
 class Centroid:
@@ -35,12 +43,32 @@ def preprocess(df: DataFrame) -> None:
     df = df.assign(_cluster = Series(zeroes))
     df = df.assign(_distance = Series(zeroes))
 
+
+    # Remove columns that we don't cluster on
+    # This is built for the wine dataset and the TwoDimHard.
+    # It'd be nice if this was more intelligent, but alas.
+    for column in IGNORED_COLUMNS:
+        if column in df:
+            df = df.drop(column, 1)
+
+    # Normalize non-ID columns
+    ids = []
+    for column in df.columns:
+        if column != 'ID':
+            ids.append(column)
+
+    df[ids] = df[ids].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+
     return df
 
 
 def vectorize(row: Series) -> tuple:
     """Data-specific vectorization"""
-    return np.array((row['X.1'], row['X.2']))
+    l = row.tolist()
+
+    # Grab everything except ID (first column)
+    # and _cluster/_distance (last 2 columns)
+    return np.array(l[1:-2])
 
 
 def distance(left, right) -> float:
@@ -73,8 +101,6 @@ def recompute_centroids(df: DataFrame, centroids: list)-> list:
             )
         ))
 
-        print(i, new_centroids[i].position)
-
     return new_centroids
 
 
@@ -103,36 +129,108 @@ def same_centroids(start: list, end: list) -> bool:
 
 
 def print_clusters(df: DataFrame):
-    print(df)
-    return
+    print('ID\t\tCluster')
+    f = open('out.csv', 'w')
 
     for i, row in df.iterrows():
-        print(row['ID'], row['_cluster'])
+        print('{:.0f}\t\t{:.0f}'.format(row['ID'], row['_cluster']))
+        f.write('{:.0f},{:.0f}\n'.format(row['ID'], row['_cluster']))
+
+    f.close()
+
+
+def print_statistics(df: DataFrame, centroids: list):
+    """print SSE and SSB statistics"""
+    total_sse = 0
+    ssb = 0
+
+    cluster_ssb = []
+
+    print('---')
+    print('Cluster\t\tSSE')
+    for cluster, centroid in enumerate(centroids):
+        sse = 0
+        ssb = 0
+        subset = df.loc[df['_cluster'] == cluster]
+
+        # Calculate SSB between this cluster and all others
+        cluster_size = len(subset)
+
+        for cl2, c2 in enumerate(centroids):
+            if cl2 != cluster:
+                ssb = ssb + cluster_size * (distance(centroid.position, c2.position) ** 2)
+
+        cluster_ssb.append(ssb)
+
+        # Calculate SSE between points and the cluster mean
+        for i, row in subset.iterrows():
+            sse = sse + row['_distance'] ** 2
+
+        total_sse = total_sse + sse
+        print('{}\t\t{}'.format(cluster, sse))
+
+    print('Total SSE\t{}'.format(total_sse))
+    print('---')
+    print('Cluster\t\tSSB')
+    for cluster, ssb in enumerate(cluster_ssb):
+        print('{}\t\t{}'.format(cluster, ssb))
 
 
 def print_cluster_scatterplot(df: DataFrame, centroids: list):
+    """Only works for TwoDimHard dataset"""
+
     # Cluster palette
-    colors = ['green', 'orange', 'blue', 'purple']
+    colors = [
+        'green',
+        'orange',
+        'blue',
+        'purple',
+        'tan',
+        'yellowgreen',
+        'royalblue',
+        'mediumvioletred',
+        'pink',
+        'salmon'
+    ]
 
-    x = []
-    y = []
-    for i, centroid in enumerate(centroids):
-        # Centroid position
-        x.append(centroid.position[0])
-        y.append(centroid.position[1])
+    # x = []
+    # y = []
+    # for i, centroid in enumerate(centroids):
+    #     # Centroid position
+    #     x.append(centroid.position[0])
+    #     y.append(centroid.position[1])
 
-        # Plot points in the centroid
-        subset = df.loc[df['cluster'] == i+1]
-        plt.scatter(subset['X.1'], subset['X.2'], c=colors[i], s=5)
+    #     # Plot points in the centroid
+    #     subset = df.loc[df['_cluster'] == i]
+    #     plt.scatter(subset['X.1'], subset['X.2'], c=colors[i], s=5)
 
     # add + markers for all centroids
-    plt.scatter(x, y, c='red', marker='+', s=50)
+    # plt.scatter(x, y, c='red', marker='+', s=50)
 
+    y = df['_cluster']
+    x = df.drop(['ID', '_cluster', '_distance'], axis=1)
+    x_norm = (x - x.min()) / (x.max() - x.min())
+
+    pca = PCA(n_components=2)
+    transformed = DataFrame(pca.fit_transform(x_norm))
+
+    # lda = LDA(n_components=2)
+    # transformed = DataFrame(lda.fit_transform(x_norm, y))
+
+    for i, centroid in enumerate(centroids):
+        plt.scatter(
+            transformed[y==i][0],
+            transformed[y==i][1],
+            label='Class ' + str(i),
+            c = colors[i],
+            s = 5
+        )
+
+    plt.legend()
     plt.show()
 
 
-
-def k_means_clustering(df: DataFrame, k: int) -> None:
+def k_means_clustering(df: DataFrame, k: int, statistics: bool) -> None:
     """apply k-means and spit out some shenanigans"""
 
     """
@@ -161,7 +259,9 @@ def k_means_clustering(df: DataFrame, k: int) -> None:
 
     print_clusters(df)
 
-    print_cluster_scatterplot(df, centroids)
+    if statistics:
+        print_statistics(df, centroids)
+        print_cluster_scatterplot(df, centroids)
 
 
 if __name__ == '__main__':
@@ -176,6 +276,12 @@ if __name__ == '__main__':
         help='K-value'
     )
 
+    parser.add_argument(
+        '--stats',
+        action='store_true',
+        help='Show SSE/SSB and PCA scatterplots'
+    )
+
     parser.add_argument('filename')
 
     args = parser.parse_args()
@@ -183,4 +289,4 @@ if __name__ == '__main__':
 
     df = preprocess(df)
 
-    k_means_clustering(df, args.k)
+    k_means_clustering(df, args.k, args.stats)
